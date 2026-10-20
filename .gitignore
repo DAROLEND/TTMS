@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Віртуальні середовища
+.venv/
+venv/
+env/
+
+# Інструменти
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / ОС
+.idea/
+.vscode/
+.DS_Store
+
+# Робочий стан і логи (самі папки лишаються в репозиторії через .gitkeep)
+data/state.json
+data/*.tmp
+logs/*.log

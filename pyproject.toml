@@ -1,0 +1,4 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Корінь репозиторію в sys.path, щоб у тестах працював `import task_manager`.
+pythonpath = ["."]
