@@ -30,6 +30,7 @@ pip install -r requirements.txt
 python -m task_manager.cli                        # консольний застосунок (Напрям 2)
 python -m streamlit run task_manager/dashboard.py # дашборд (Напрям 3)
 python -m pytest                                  # тести (Напрям 2)
+python -m scripts.demo_domain                     # демонстрація доменних класів
 ```
 
 Усі команди запускаються **з кореня репозиторію** і через `python -m`: так корінь потрапляє
