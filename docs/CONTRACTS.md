@@ -31,7 +31,7 @@ from task_manager.exceptions import (
 | Звʼязок Task ↔ TeamMember | Двосторонній: `task.assignee` і `member.assigned_tasks`. Встановлюється **тільки** через `Project.assign_task()` (або низькорівнево `Task.assign_to()`), що оновлює обидві сторони. У конструктори виконавця не передають. |
 | Рівність | Обʼєкти порівнюються за ідентичністю (`==` за замовчуванням). Для round-trip тестів порівнюйте результати `to_dict()`. |
 | Помилки | Домен кидає тільки нащадків `TaskManagerError`. Неправильний тип поля (рядок замість `Priority`, порожня назва) → `ValidationError`. |
-| Чистота домену | `domain/` не імпортує `json`, `pandas`, `streamlit`, `storage/`, `analytics/`, не викликає `print` / `input`. |
+| Чистота домену | `domain/` не імпортує `json`, `pandas`, `streamlit`, `storage/`, `analytics/` (єдиний виняток — декоратор, розділ 10), не викликає `print` / `input`. |
 
 ---
 
@@ -348,16 +348,11 @@ for m in d["members"]:
   а запис у `logs/status_changes.log` налаштовується окремою функцією, яку викликає `cli.py`;
 - `analytics/__init__.py` не імпортує `stats.py` (інакше імпорт `Task` потягне pandas).
 
-> ⚠️ **Відкрите питання:** імпорт декоратора з `analytics/` у `domain/task.py` формально
-> порушує правило «домен не імпортує analytics». Варіанти:
->
-> 1. **Перенести декоратор у нейтральний модуль** `task_manager/decorators.py` (поза
->    `analytics/`, пише його так само Напрям 3). Домен залежить лише від stdlib-утиліти.
->    *Рекомендовано.*
-> 2. Лишити в `analytics/decorators.py` і прийняти виняток із правила, дотримуючись
->    вимог вище.
-> 3. Не чіпати `task.py`, а обгорнути метод при старті застосунку:
->    `Task.change_status = log_status_change(Task.change_status)` у `cli.py`. Домен чистий,
->    але декоратора не видно в коді класу, і на захисті це виглядає як «магія».
->
-> Поки не вирішено, над `change_status` стоїть `# TODO`.
+**Рішення:** декоратор лишається в `analytics/decorators.py`, і `domain/task.py` імпортує
+його напряму. Це єдиний дозволений виняток із правила «домен не імпортує analytics».
+Він безпечний, поки виконуються вимоги вище: модуль використовує тільки stdlib, а
+`analytics/__init__.py` не імпортує pandas.
+
+Запис у файл вмикає `setup_status_logger()` з `analytics/decorators.py`. Її викликають
+`cli.py` і `scripts/demo_domain.py`. Без цього виклику попередження про невдалі
+переходи потрапляють у stderr.
