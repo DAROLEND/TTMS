@@ -119,27 +119,43 @@ def _generate_demo_data() -> dict[str, Any]:
     }
 
 
-def load_project_data() -> tuple[dict[str, Any] | Any, str]:
-    """Безпечне завантаження даних (з файлу або демо)."""
-    if "custom_project_data" in st.session_state and st.session_state["custom_project_data"]:
-        return st.session_state["custom_project_data"], "Завантажений користувачем JSON"
+SOURCE_STATE = "Мій проєкт"
+SOURCE_DEMO = "Демодані"
 
-    if STATE_FILE.is_file():
+
+def load_project_data() -> tuple[dict[str, Any] | Any, str]:
+    """Дані для дашборду: завантажений файл, data/state.json або демо."""
+    if st.session_state.get("custom_project_data"):
+        return st.session_state["custom_project_data"], "завантажений файл"
+
+    # None — користувач зняв вибір; тоді показуємо свій проєкт.
+    use_state = (st.session_state.get("data_source") or SOURCE_STATE) == SOURCE_STATE
+    if STATE_FILE.is_file() and use_state:
         try:
             try:
                 from task_manager.storage.serializer import load_state
-                project = load_state(str(STATE_FILE))
-                return project, f"Сховище ({STATE_FILE})"
+                return load_state(str(STATE_FILE)), str(STATE_FILE)
             except Exception:
                 with open(STATE_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                return data, f"Файл JSON ({STATE_FILE})"
+                    return json.load(f), f"{STATE_FILE} (як JSON)"
         except Exception as e:
             st.sidebar.error(f"Помилка читання: {e}")
 
     if "demo_data" not in st.session_state:
         st.session_state["demo_data"] = _generate_demo_data()
-    return st.session_state["demo_data"], "Демонстраційні дані (очікує створення data/state.json)"
+    return st.session_state["demo_data"], "демодані"
+
+
+def _on_upload() -> None:
+    """Викликається, коли файл вибрали або прибрали з поля завантаження."""
+    file = st.session_state.get("uploaded_json")
+    st.session_state["upload_error"] = None
+    st.session_state["custom_project_data"] = None
+    if file is not None:
+        try:
+            st.session_state["custom_project_data"] = json.load(file)
+        except Exception as e:
+            st.session_state["upload_error"] = str(e)
 
 
 # Висота одного рядка горизонтальної діаграми, щоб графік не стискався.
@@ -226,20 +242,20 @@ def main() -> None:
 
     with st.sidebar:
         st.subheader("Дані")
+        if STATE_FILE.is_file():
+            st.segmented_control(
+                "Що показувати", [SOURCE_STATE, SOURCE_DEMO], key="data_source",
+                default=SOURCE_STATE, width="stretch",
+            )
         st.caption(f"Джерело: {source_desc}")
 
-        uploaded = st.file_uploader("Відкрити інший state.json", type=["json"])
-        if uploaded is not None:
-            try:
-                st.session_state["custom_project_data"] = json.load(uploaded)
-                st.rerun()
-            except Exception as e:
-                st.error(f"Некоректний JSON: {e}")
-
-        if st.button("Повернути демодані", width="stretch"):
-            st.session_state["custom_project_data"] = None
-            st.session_state["demo_data"] = _generate_demo_data()
-            st.rerun()
+        st.file_uploader(
+            "Відкрити інший state.json", type=["json"],
+            key="uploaded_json", on_change=_on_upload,
+            help="Щоб повернутися назад, приберіть файл хрестиком.",
+        )
+        if st.session_state.get("upload_error"):
+            st.error(f"Некоректний JSON: {st.session_state['upload_error']}")
 
         st.divider()
         st.subheader("Фільтри")
@@ -255,7 +271,7 @@ def main() -> None:
         )
         assignees = sorted(df_all["assignee_name"].dropna().unique().tolist()) if not df_all.empty else []
         selected_assignees = st.multiselect("Виконавець", assignees, placeholder="Усі виконавці")
-        search = st.text_input("Пошук за назвою", "").strip()
+        search = st.text_input("Пошук", "", placeholder="Назва завдання або імʼя").strip()
 
     df_filtered = df_all.copy()
     if not df_filtered.empty:
@@ -266,13 +282,18 @@ def main() -> None:
         if selected_assignees:
             df_filtered = df_filtered[df_filtered["assignee_name"].isin(selected_assignees)]
         if search:
-            df_filtered = df_filtered[df_filtered["title"].str.contains(search, case=False, na=False)]
+            in_title = df_filtered["title"].str.contains(search, case=False, na=False, regex=False)
+            in_name = df_filtered["assignee_name"].astype(str).str.contains(search, case=False, regex=False)
+            df_filtered = df_filtered[in_title | in_name]
 
     st.title("Аналітика проєкту")
     st.caption(proj_name)
 
-    summary = get_project_summary(df_all)
-    on_time = get_on_time_completion_stats(df_all)
+    # Картки й вкладки рахуються по відфільтрованих завданнях.
+    summary = get_project_summary(df_filtered)
+    on_time = get_on_time_completion_stats(df_filtered)
+    if len(df_filtered) != len(df_all):
+        st.caption(f"Показано {len(df_filtered)} з {len(df_all)} завдань за фільтрами")
     on_time_value = f"{on_time['on_time_rate_pct']}%" if on_time["completed_with_deadline"] else "—"
 
     c1, c2, c3, c4, c5 = st.columns(5)
