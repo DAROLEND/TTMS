@@ -1,0 +1,8 @@
+[theme]
+primaryColor = "#4C78A8"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
